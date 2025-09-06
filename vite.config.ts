@@ -5,6 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: "/ask-read-assist/",   // 👈 仓库名必须写在这里
   server: {
     host: "::",
     port: 8080,
