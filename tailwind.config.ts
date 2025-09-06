@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        serif: ['Playfair Display', 'Georgia', 'serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -47,6 +51,13 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        "chat-user": "hsl(var(--chat-user))",
+        "chat-user-foreground": "hsl(var(--chat-user-foreground))",
+        "chat-bot": "hsl(var(--chat-bot))",
+        "chat-bot-foreground": "hsl(var(--chat-bot-foreground))",
+        "heading-color": "hsl(var(--heading-color))",
+        "body-color": "hsl(var(--body-color))",
+        "caption-color": "hsl(var(--caption-color))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
