@@ -2,7 +2,7 @@ name: Deploy Vite site to GitHub Pages
 
 on:
   push:
-    branches: ["main"]   # 👈 如果你分支不是 main 改这里
+    branches: ["main","dev"]   # 👈 如果你分支不是 main 改这里
 
 jobs:
   build:
