@@ -2,7 +2,7 @@ name: Deploy Vite site to GitHub Pages
 
 on:
   push:
-    branches: ["dev"]   # 👈 如果你在 dev 分支，就写 dev；要 main+dev 都触发可以写 ["main","dev"]
+    branches: ["dev"]   # 👈 你实际开发用的是 dev 分支
 
 jobs:
   build:
@@ -14,7 +14,9 @@ jobs:
           node-version: 18
       - run: npm install
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3   # 👈 最新版本
+      # 👇 增加 fallback，复制 index.html 为 404.html
+      - run: cp dist/index.html dist/404.html
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
 
@@ -29,4 +31,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4   # 👈 最新版本
+        uses: actions/deploy-pages@v4

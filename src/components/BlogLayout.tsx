@@ -1,75 +1,146 @@
-import { useState } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronLeft, ChevronRight, Menu } from "lucide-react";
-import { ChatWidget } from "./ChatWidget";
+import { ChevronLeft, ChevronRight, Menu, RefreshCw } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+
+// 延迟加载ChatWidget组件
+const ChatWidget = lazy(() => import("./ChatWidget").then(module => ({ default: module.ChatWidget })));
 
 interface Chapter {
   id: string;
   title: string;
-  content: string;
+  content: string; // Markdown content
+  filename?: string;
+  chapter_number?: number;
 }
 
-const sampleChapters: Chapter[] = [
-  {
-    id: "1",
-    title: "Introduction to Modern Web Development",
-    content: `
-      <p>Welcome to the fascinating world of modern web development. In this comprehensive guide, we'll explore the fundamental concepts, tools, and technologies that shape today's digital landscape.</p>
-      
-      <p>Web development has evolved tremendously over the past decade. What started as simple HTML pages has transformed into complex, interactive applications that power everything from social networks to enterprise software.</p>
-      
-      <p>In this chapter, we'll cover the essential building blocks of modern web development, including HTML5, CSS3, and JavaScript ES6+. We'll also discuss the importance of responsive design, accessibility, and performance optimization.</p>
-      
-      <p>Whether you're a complete beginner or looking to update your skills, this guide will provide you with the knowledge and practical examples you need to succeed in web development.</p>
-    `
-  },
-  {
-    id: "2",
-    title: "Understanding React and Component Architecture",
-    content: `
-      <p>React has revolutionized the way we build user interfaces. This component-based library allows developers to create reusable, maintainable, and efficient web applications.</p>
-      
-      <p>In this chapter, we'll dive deep into React's core concepts:</p>
-      
-      <ul>
-        <li><strong>Components:</strong> The building blocks of React applications</li>
-        <li><strong>JSX:</strong> JavaScript XML syntax for describing UI elements</li>
-        <li><strong>Props:</strong> How data flows between components</li>
-        <li><strong>State:</strong> Managing component data and interactions</li>
-        <li><strong>Hooks:</strong> Modern React features for state and lifecycle management</li>
-      </ul>
-      
-      <p>We'll also explore best practices for component design, including composition patterns, prop validation, and performance optimization techniques.</p>
-      
-      <p>By the end of this chapter, you'll have a solid understanding of how to build scalable React applications using modern development patterns.</p>
-    `
-  },
-  {
-    id: "3",
-    title: "Styling with Tailwind CSS",
-    content: `
-      <p>Tailwind CSS has emerged as one of the most popular utility-first CSS frameworks. It provides a comprehensive set of utility classes that enable rapid UI development without writing custom CSS.</p>
-      
-      <p>This chapter covers everything you need to know about Tailwind CSS:</p>
-      
-      <p><strong>Core Concepts:</strong> Understanding utility classes, responsive design, and the mobile-first approach. Learn how to use spacing, typography, colors, and layout utilities effectively.</p>
-      
-      <p><strong>Customization:</strong> Tailwind's configuration system allows you to customize colors, fonts, spacing, and more to match your design system perfectly.</p>
-      
-      <p><strong>Advanced Features:</strong> Explore dark mode support, custom utilities, component extraction, and optimization strategies for production builds.</p>
-      
-      <p>We'll build practical examples showcasing how Tailwind CSS can accelerate your development workflow while maintaining design consistency across your applications.</p>
-    `
-  }
-];
-
 export function BlogLayout() {
+  const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentChapter, setCurrentChapter] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadChapters = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log("Attempting to load chapters from https://jenny-capital-300348180421.us-central1.run.app/chapters");
+      
+      const response = await fetch("https://jenny-capital-300348180421.us-central1.run.app/chapters");
+      
+      console.log("Load chapters response status:", response.status);
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.text();
+          console.error("Error response body:", errorData);
+          errorMessage += errorData ? ` - ${errorData}` : '';
+        } catch (parseErr) {
+          console.error("Could not parse error response:", parseErr);
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const data = await response.json();
+      console.log("Chapters data received:", data);
+      
+      if (data.chapters && data.chapters.length > 0) {
+        setChapters(data.chapters);
+        console.log(`Successfully loaded ${data.chapters.length} chapters`);
+      } else {
+        const message = data.message || "No chapters found. Please generate them first.";
+        console.log("No chapters available:", message);
+        setError(message);
+      }
+    } catch (err) {
+      console.error("Failed to load chapters:", err);
+      
+      // 提供更详细的错误信息
+      let errorMessage = "Failed to load chapters. ";
+      
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        errorMessage += "Cannot connect to the backend server at https://jenny-capital-300348180421.us-central1.run.app. Please ensure the server is running on port 8080.";
+      } else if (err instanceof Error) {
+        errorMessage += `Error: ${err.message}`;
+      } else {
+        errorMessage += "Unknown error occurred.";
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const regenerateChapters = async () => {
+    try {
+      setRegenerating(true);
+      setError(null); // 清除之前的错误
+      
+      // 首先检查服务器是否可达
+      console.log("Attempting to regenerate chapters...");
+      
+      const response = await fetch("https://jenny-capital-300348180421.us-central1.run.app/chapters/regenerate", {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log("Response status:", response.status);
+      console.log("Response headers:", Object.fromEntries(response.headers));
+      
+      if (!response.ok) {
+        // 尝试获取错误响应的详细信息
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.text();
+          console.error("Error response body:", errorData);
+          errorMessage += errorData ? ` - ${errorData}` : '';
+        } catch (parseErr) {
+          console.error("Could not parse error response:", parseErr);
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const data = await response.json();
+      console.log("Regeneration result:", data);
+      
+      // Reload chapters after regeneration
+      await loadChapters();
+    } catch (err) {
+      console.error("Failed to regenerate chapters:", err);
+      
+      // 提供更详细的错误信息
+      let errorMessage = "Failed to regenerate chapters. ";
+      
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        errorMessage += "Cannot connect to the backend server at https://jenny-capital-300348180421.us-central1.run.app. Please ensure the server is running.";
+      } else if (err instanceof Error) {
+        errorMessage += `Error: ${err.message}`;
+      } else {
+        errorMessage += "Unknown error occurred. Please check the console for details.";
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    loadChapters();
+  }, []);
 
   const nextChapter = () => {
-    if (currentChapter < sampleChapters.length - 1) {
+    if (currentChapter < chapters.length - 1) {
       setCurrentChapter(currentChapter + 1);
     }
   };
@@ -79,6 +150,38 @@ export function BlogLayout() {
       setCurrentChapter(currentChapter - 1);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="p-8 text-center">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+        <p>📖 Loading chapters...</p>
+      </div>
+    );
+  }
+
+  if (error || chapters.length === 0) {
+    return (
+      <div className="p-8 text-center">
+        <div className="max-w-md mx-auto">
+          <p className="text-lg mb-4">⚠️ {error || "No chapters available."}</p>
+          <Button onClick={regenerateChapters} disabled={regenerating} className="gap-2">
+            {regenerating ? (
+              <>
+                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                Generating...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                Generate Chapters
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -95,11 +198,25 @@ export function BlogLayout() {
               <Menu className="h-5 w-5" />
             </Button>
             <h1 className="text-xl font-serif font-semibold text-heading-color">
-              Modern Web Development Guide
+              Rule 144 Deep Dive
             </h1>
           </div>
-          
+
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={regenerateChapters}
+              disabled={regenerating}
+              className="gap-2"
+            >
+              {regenerating ? (
+                <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Regenerate
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -113,7 +230,7 @@ export function BlogLayout() {
               variant="ghost"
               size="sm"
               onClick={nextChapter}
-              disabled={currentChapter === sampleChapters.length - 1}
+              disabled={currentChapter === chapters.length - 1}
             >
               Next
               <ChevronRight className="h-4 w-4" />
@@ -124,22 +241,28 @@ export function BlogLayout() {
 
       <div className="container mx-auto px-4 flex gap-8">
         {/* Table of Contents Sidebar */}
-        <aside className={`w-80 flex-shrink-0 ${sidebarOpen ? 'block' : 'hidden'} md:block`}>
+        <aside
+          className={`w-80 flex-shrink-0 ${sidebarOpen ? "block" : "hidden"} md:block`}
+        >
           <div className="sticky top-20 py-6">
-            <h3 className="text-lg font-semibold text-heading-color mb-4">Table of Contents</h3>
+            <h3 className="text-lg font-semibold text-heading-color mb-4">
+              Table of Contents
+            </h3>
             <ScrollArea className="h-[calc(100vh-8rem)]">
               <nav className="space-y-2">
-                {sampleChapters.map((chapter, index) => (
+                {chapters.map((chapter, index) => (
                   <button
                     key={chapter.id}
                     onClick={() => setCurrentChapter(index)}
                     className={`w-full text-left p-3 rounded-lg transition-colors ${
                       currentChapter === index
-                        ? 'bg-accent text-accent-foreground'
-                        : 'hover:bg-muted text-muted-foreground'
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-muted text-muted-foreground"
                     }`}
                   >
-                    <div className="text-sm font-medium">Chapter {index + 1}</div>
+                    <div className="text-sm font-medium">
+                      Chapter {chapter.chapter_number || index + 1}
+                    </div>
                     <div className="text-xs truncate">{chapter.title}</div>
                   </button>
                 ))}
@@ -150,24 +273,122 @@ export function BlogLayout() {
 
         {/* Main Content */}
         <main className="flex-1 py-8 max-w-4xl">
-          <article className="prose prose-lg max-w-none">
+          <article className="prose prose-lg max-w-none dark:prose-invert">
             <header className="mb-8">
               <div className="text-sm text-caption-color mb-2">
-                Chapter {currentChapter + 1} of {sampleChapters.length}
+                Chapter {chapters[currentChapter].chapter_number || currentChapter + 1} of {chapters.length}
               </div>
-              <h1 className="blog-title mb-4">
-                {sampleChapters[currentChapter].title}
-              </h1>
-              <div className="h-1 w-20 bg-primary rounded-full"></div>
+              <div className="h-1 w-20 bg-primary rounded-full mb-6"></div>
             </header>
-            
-            <div 
-              className="blog-body space-y-6"
-              dangerouslySetInnerHTML={{ 
-                __html: sampleChapters[currentChapter].content 
-              }}
-            />
-            
+
+            {/* Markdown Content */}
+            <div className="markdown-content">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw]}
+                components={{
+                  h1: ({ children, ...props }) => (
+                    <h1 className="text-4xl font-bold mb-6 text-heading-color border-b pb-4" {...props}>
+                      {children}
+                    </h1>
+                  ),
+                  h2: ({ children, ...props }) => (
+                    <h2 className="text-3xl font-semibold mt-12 mb-6 text-heading-color" {...props}>
+                      {children}
+                    </h2>
+                  ),
+                  h3: ({ children, ...props }) => (
+                    <h3 className="text-2xl font-semibold mt-8 mb-4 text-heading-color" {...props}>
+                      {children}
+                    </h3>
+                  ),
+                  h4: ({ children, ...props }) => (
+                    <h4 className="text-xl font-semibold mt-6 mb-3 text-heading-color" {...props}>
+                      {children}
+                    </h4>
+                  ),
+                  p: ({ children, ...props }) => (
+                    <p className="mb-4 text-base leading-7 text-body-color" {...props}>
+                      {children}
+                    </p>
+                  ),
+                  ul: ({ children, ...props }) => (
+                    <ul className="list-disc list-inside mb-6 space-y-2 text-body-color" {...props}>
+                      {children}
+                    </ul>
+                  ),
+                  ol: ({ children, ...props }) => (
+                    <ol className="list-decimal list-inside mb-6 space-y-2 text-body-color" {...props}>
+                      {children}
+                    </ol>
+                  ),
+                  li: ({ children, ...props }) => (
+                    <li className="mb-1 leading-7" {...props}>{children}</li>
+                  ),
+                  blockquote: ({ children, ...props }) => (
+                    <blockquote className="border-l-4 border-primary pl-6 italic my-6 text-muted-foreground" {...props}>
+                      {children}
+                    </blockquote>
+                  ),
+
+                  code: ({ node, className, children, ...props }: any) => {
+                    const inline = (props as any)?.inline;
+                    const isInline = inline;
+                    return isInline ? (
+                      <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                        {children}
+                      </code>
+                    ) : (
+                      <code className="block bg-muted p-4 rounded-lg text-sm font-mono overflow-x-auto" {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+
+                  pre: ({ children, ...props }) => (
+                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto mb-6" {...props}>
+                      {children}
+                    </pre>
+                  ),
+                  strong: ({ children, ...props }) => (
+                    <strong className="font-semibold text-heading-color" {...props}>
+                      {children}
+                    </strong>
+                  ),
+                  a: ({ href, children, ...props }) => (
+                    <a
+                      href={href}
+                      className="text-primary hover:underline"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      {...props}
+                    >
+                      {children}
+                    </a>
+                  ),
+                  table: ({ children, ...props }) => (
+                    <div className="overflow-x-auto my-6">
+                      <table className="w-full border-collapse border border-border" {...props}>
+                        {children}
+                      </table>
+                    </div>
+                  ),
+                  th: ({ children, ...props }) => (
+                    <th className="border border-border p-3 bg-muted font-semibold text-left" {...props}>
+                      {children}
+                    </th>
+                  ),
+                  td: ({ children, ...props }) => (
+                    <td className="border border-border p-3" {...props}>
+                      {children}
+                    </td>
+                  ),
+                }}
+              >
+                {chapters[currentChapter].content}
+              </ReactMarkdown>
+            </div>
+
             {/* Chapter Navigation */}
             <footer className="flex justify-between items-center pt-12 mt-12 border-t">
               <Button
@@ -179,14 +400,14 @@ export function BlogLayout() {
                 <ChevronLeft className="h-4 w-4" />
                 Previous Chapter
               </Button>
-              
+
               <span className="text-sm text-caption-color">
-                {currentChapter + 1} / {sampleChapters.length}
+                {currentChapter + 1} / {chapters.length}
               </span>
-              
+
               <Button
                 onClick={nextChapter}
-                disabled={currentChapter === sampleChapters.length - 1}
+                disabled={currentChapter === chapters.length - 1}
                 className="gap-2"
               >
                 Next Chapter
@@ -197,8 +418,10 @@ export function BlogLayout() {
         </main>
       </div>
 
-      {/* Chat Widget */}
-      <ChatWidget />
+      {/* Chat Widget - 延迟加载 */}
+      <Suspense fallback={null}>
+        <ChatWidget />
+      </Suspense>
     </div>
   );
 }
