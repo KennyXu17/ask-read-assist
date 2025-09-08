@@ -22,7 +22,7 @@ const initialMessages: ChatMessage[] = [
   },
 ];
 
-export function ChatWidget() {
+export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);

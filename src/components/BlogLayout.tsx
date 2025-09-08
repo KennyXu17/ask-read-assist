@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 
 // 延迟加载ChatWidget组件
-const ChatWidget = lazy(() => import("./ChatWidget").then(module => ({ default: module.ChatWidget })));
+const ChatWidget = lazy(() => import("./ChatWidget"));
 
 interface Chapter {
   id: string;
@@ -343,67 +343,79 @@ export function BlogLayout() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 flex gap-8 transition-all duration-300">
-        {/* Table of Contents Sidebar */}
-        <aside
-          className={`
-            ${tocVisible ? 'w-80' : 'w-0'} 
-            flex-shrink-0 
-            overflow-hidden
-            transition-all duration-300 ease-in-out
-            ${sidebarOpen ? "block" : "hidden"} 
-            ${tocVisible ? "md:block" : "md:hidden"}
-          `}
-        >
-          <div className="sticky top-20 py-6">
-            <Collapsible open={!tocCollapsed} onOpenChange={(open) => setTocCollapsed(!open)}>
-              <CollapsibleTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className="w-full flex items-center justify-between p-0 h-auto mb-4 hover:bg-transparent"
-                >
-                  <h3 className="text-lg font-semibold text-heading-color">
-                    Table of Contents
-                  </h3>
-                  {tocCollapsed ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-              
-              <CollapsibleContent className="space-y-2">
-                <ScrollArea className="h-[calc(100vh-8rem)]">
-                  <nav className="space-y-2">
-                    {chapters.map((chapter, index) => (
-                      <button
-                        key={chapter.id}
-                        onClick={() => setCurrentChapter(index)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors ${
-                          currentChapter === index
-                            ? "bg-accent text-accent-foreground"
-                            : "hover:bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        <div className="text-sm font-medium">
-                          Chapter {chapter.chapter_number || index + 1}
-                        </div>
-                        <div className="text-xs truncate">{chapter.title}</div>
-                      </button>
-                    ))}
-                  </nav>
-                </ScrollArea>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-        </aside>
+      <div className="container mx-auto px-4 relative max-w-7xl">
+        {/* 移动端背景遮罩 */}
+        {tocVisible && (
+          <div 
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm md:hidden z-20"
+            onClick={() => setTocVisible(false)}
+          />
+        )}
+        
+        <div className="flex gap-0 md:gap-6">
+          {/* Table of Contents Sidebar - 向左滑动隐藏 */}
+          <aside
+            className={`
+              fixed left-0 top-16 h-[calc(100vh-4rem)] bg-background border-r z-30
+              transform transition-all duration-300 ease-in-out
+              ${tocVisible ? 'translate-x-0' : '-translate-x-full'}
+              w-80 
+              md:relative md:top-0 md:h-auto md:bg-transparent md:border-r-0
+              ${tocVisible ? 'md:w-80 md:flex-shrink-0 md:pr-6' : 'md:w-0 md:overflow-hidden md:pr-0'}
+              ${sidebarOpen ? "block" : "hidden"} 
+              md:block
+            `}
+          >
+            <div className="sticky top-20 py-6 px-4 md:px-0 h-full overflow-auto">
+              <Collapsible open={!tocCollapsed} onOpenChange={(open) => setTocCollapsed(!open)}>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full flex items-center justify-between p-0 h-auto mb-4 hover:bg-transparent"
+                  >
+                    <h3 className="text-lg font-semibold text-heading-color">
+                      Table of Contents
+                    </h3>
+                    {tocCollapsed ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent className="space-y-2">
+                  <ScrollArea className="h-[calc(100vh-8rem)]">
+                    <nav className="space-y-2">
+                      {chapters.map((chapter, index) => (
+                        <button
+                          key={chapter.id}
+                          onClick={() => setCurrentChapter(index)}
+                          className={`w-full text-left p-3 rounded-lg transition-colors ${
+                            currentChapter === index
+                              ? "bg-accent text-accent-foreground"
+                              : "hover:bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          <div className="text-sm font-medium">
+                            Chapter {chapter.chapter_number || index + 1}
+                          </div>
+                          <div className="text-xs truncate">{chapter.title}</div>
+                        </button>
+                      ))}
+                    </nav>
+                  </ScrollArea>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </aside>
 
-        {/* Main Content */}
-        <main className={`
-          flex-1 py-8 transition-all duration-300
-          ${tocVisible ? 'max-w-4xl' : 'max-w-6xl'}
-        `}>
+          {/* Main Content */}
+          <main className={`
+            flex-1 py-8 transition-all duration-300
+            ${tocVisible ? 'md:px-0' : 'md:px-12'}
+            max-w-none
+          `}>
           <article className="prose prose-lg max-w-none dark:prose-invert">
             <header className="mb-8">
               <div className="text-sm text-caption-color mb-2">
@@ -547,6 +559,7 @@ export function BlogLayout() {
             </footer>
           </article>
         </main>
+        </div>
       </div>
 
       {/* Chat Widget - 延迟加载 */}
