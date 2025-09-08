@@ -19,8 +19,13 @@ export default defineConfig(({ mode }) => ({
     outDir: "dist",  // 默认就是 dist，可以手动指定
     emptyOutDir: true, // 构建前清理 dist
     chunkSizeWarningLimit: 1000, // 提高警告阈值到1MB
+    assetsInlineLimit: 0, // 禁用内联资源，确保所有文件都有正确的扩展名
     rollupOptions: {
       output: {
+        // 确保输出文件有正确的扩展名
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks: {
           // 将React相关库分离到单独的chunk
           react: ['react', 'react-dom'],

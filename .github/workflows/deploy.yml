@@ -16,6 +16,11 @@ jobs:
       - run: npm run build
       # 👇 增加 fallback，复制 index.html 为 404.html
       - run: cp dist/index.html dist/404.html
+      # 👇 创建 .htaccess 文件来设置正确的MIME类型（如果服务器支持）
+      - run: |
+          echo 'AddType application/javascript .js' > dist/.htaccess
+          echo 'AddType text/css .css' >> dist/.htaccess
+          echo 'AddType application/json .json' >> dist/.htaccess
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
