@@ -1,7 +1,8 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronLeft, ChevronRight, Menu, RefreshCw } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronLeft, ChevronRight, Menu, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -25,6 +26,7 @@ export function BlogLayout() {
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
+  const [tocCollapsed, setTocCollapsed] = useState(false);
 
   // 预热服务器的函数
   const warmupServer = async () => {
@@ -329,29 +331,46 @@ export function BlogLayout() {
           className={`w-80 flex-shrink-0 ${sidebarOpen ? "block" : "hidden"} md:block`}
         >
           <div className="sticky top-20 py-6">
-            <h3 className="text-lg font-semibold text-heading-color mb-4">
-              Table of Contents
-            </h3>
-            <ScrollArea className="h-[calc(100vh-8rem)]">
-              <nav className="space-y-2">
-                {chapters.map((chapter, index) => (
-                  <button
-                    key={chapter.id}
-                    onClick={() => setCurrentChapter(index)}
-                    className={`w-full text-left p-3 rounded-lg transition-colors ${
-                      currentChapter === index
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    <div className="text-sm font-medium">
-                      Chapter {chapter.chapter_number || index + 1}
-                    </div>
-                    <div className="text-xs truncate">{chapter.title}</div>
-                  </button>
-                ))}
-              </nav>
-            </ScrollArea>
+            <Collapsible open={!tocCollapsed} onOpenChange={(open) => setTocCollapsed(!open)}>
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="w-full flex items-center justify-between p-0 h-auto mb-4 hover:bg-transparent"
+                >
+                  <h3 className="text-lg font-semibold text-heading-color">
+                    Table of Contents
+                  </h3>
+                  {tocCollapsed ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              
+              <CollapsibleContent className="space-y-2">
+                <ScrollArea className="h-[calc(100vh-8rem)]">
+                  <nav className="space-y-2">
+                    {chapters.map((chapter, index) => (
+                      <button
+                        key={chapter.id}
+                        onClick={() => setCurrentChapter(index)}
+                        className={`w-full text-left p-3 rounded-lg transition-colors ${
+                          currentChapter === index
+                            ? "bg-accent text-accent-foreground"
+                            : "hover:bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        <div className="text-sm font-medium">
+                          Chapter {chapter.chapter_number || index + 1}
+                        </div>
+                        <div className="text-xs truncate">{chapter.title}</div>
+                      </button>
+                    ))}
+                  </nav>
+                </ScrollArea>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         </aside>
 
