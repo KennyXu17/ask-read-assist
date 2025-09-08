@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronLeft, ChevronRight, Menu, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, Menu, RefreshCw, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -21,12 +21,13 @@ interface Chapter {
 export function BlogLayout() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentChapter, setCurrentChapter] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // 移动端侧边栏
+  const [tocVisible, setTocVisible] = useState(true); // 桌面端目录可见性
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
-  const [tocCollapsed, setTocCollapsed] = useState(false);
+  const [tocCollapsed, setTocCollapsed] = useState(false); // 目录内容展开/折叠
 
   // 预热服务器的函数
   const warmupServer = async () => {
@@ -275,6 +276,7 @@ export function BlogLayout() {
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
+            {/* 移动端菜单按钮 */}
             <Button
               variant="ghost"
               size="sm"
@@ -283,6 +285,22 @@ export function BlogLayout() {
             >
               <Menu className="h-5 w-5" />
             </Button>
+            
+            {/* 桌面端目录切换按钮 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTocVisible(!tocVisible)}
+              className="hidden md:flex"
+              title={tocVisible ? "Hide Table of Contents" : "Show Table of Contents"}
+            >
+              {tocVisible ? (
+                <PanelLeftClose className="h-5 w-5" />
+              ) : (
+                <PanelLeftOpen className="h-5 w-5" />
+              )}
+            </Button>
+            
             <h1 className="text-xl font-serif font-semibold text-heading-color">
               Rule 144 Deep Dive
             </h1>
@@ -325,10 +343,17 @@ export function BlogLayout() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 flex gap-8">
+      <div className="container mx-auto px-4 flex gap-8 transition-all duration-300">
         {/* Table of Contents Sidebar */}
         <aside
-          className={`w-80 flex-shrink-0 ${sidebarOpen ? "block" : "hidden"} md:block`}
+          className={`
+            ${tocVisible ? 'w-80' : 'w-0'} 
+            flex-shrink-0 
+            overflow-hidden
+            transition-all duration-300 ease-in-out
+            ${sidebarOpen ? "block" : "hidden"} 
+            ${tocVisible ? "md:block" : "md:hidden"}
+          `}
         >
           <div className="sticky top-20 py-6">
             <Collapsible open={!tocCollapsed} onOpenChange={(open) => setTocCollapsed(!open)}>
@@ -375,7 +400,10 @@ export function BlogLayout() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 py-8 max-w-4xl">
+        <main className={`
+          flex-1 py-8 transition-all duration-300
+          ${tocVisible ? 'max-w-4xl' : 'max-w-6xl'}
+        `}>
           <article className="prose prose-lg max-w-none dark:prose-invert">
             <header className="mb-8">
               <div className="text-sm text-caption-color mb-2">
