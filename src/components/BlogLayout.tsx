@@ -24,40 +24,97 @@ export function BlogLayout() {
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
+
+  // 预热服务器的函数
+  const warmupServer = async () => {
+    try {
+      console.log("Warming up server...");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+      
+      await fetch("https://jenny-capital-300348180421.us-central1.run.app/health", {
+        method: "GET",
+        signal: controller.signal,
+      }).catch(() => {
+        // 忽略预热错误，不影响主要功能
+      });
+      
+      clearTimeout(timeoutId);
+    } catch (error) {
+      // 忽略预热错误
+      console.log("Warmup completed or failed, proceeding with main request");
+    }
+  };
+
+  const loadChaptersWithRetry = async (retryCount = 0) => {
+    const maxRetries = 2;
+    
+    try {
+      // 第一次尝试时先预热服务器
+      if (retryCount === 0) {
+        await warmupServer();
+      }
+      await loadChapters();
+    } catch (error) {
+      if (retryCount < maxRetries) {
+        console.log(`Retrying... Attempt ${retryCount + 1}/${maxRetries}`);
+        setTimeout(() => loadChaptersWithRetry(retryCount + 1), 2000);
+      } else {
+        throw error;
+      }
+    }
+  };
 
   const loadChapters = async () => {
     try {
       setLoading(true);
       setError(null);
+      setLoadingStartTime(Date.now());
       
       console.log("Attempting to load chapters from https://jenny-capital-300348180421.us-central1.run.app/chapters");
       
-      const response = await fetch("https://jenny-capital-300348180421.us-central1.run.app/chapters");
+      // 添加超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
       
-      console.log("Load chapters response status:", response.status);
-      
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const errorData = await response.text();
-          console.error("Error response body:", errorData);
-          errorMessage += errorData ? ` - ${errorData}` : '';
-        } catch (parseErr) {
-          console.error("Could not parse error response:", parseErr);
+      try {
+        const response = await fetch("https://jenny-capital-300348180421.us-central1.run.app/chapters", {
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        console.log("Load chapters response status:", response.status);
+        
+        if (!response.ok) {
+          let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          try {
+            const errorData = await response.text();
+            console.error("Error response body:", errorData);
+            errorMessage += errorData ? ` - ${errorData}` : '';
+          } catch (parseErr) {
+            console.error("Could not parse error response:", parseErr);
+          }
+          throw new Error(errorMessage);
         }
-        throw new Error(errorMessage);
-      }
-      
-      const data = await response.json();
-      console.log("Chapters data received:", data);
-      
-      if (data.chapters && data.chapters.length > 0) {
-        setChapters(data.chapters);
-        console.log(`Successfully loaded ${data.chapters.length} chapters`);
-      } else {
-        const message = data.message || "No chapters found. Please generate them first.";
-        console.log("No chapters available:", message);
-        setError(message);
+        
+        const data = await response.json();
+        console.log("Chapters data received:", data);
+        
+        if (data.chapters && data.chapters.length > 0) {
+          setChapters(data.chapters);
+          console.log(`Successfully loaded ${data.chapters.length} chapters`);
+        } else {
+          const message = data.message || "No chapters found. Please generate them first.";
+          console.log("No chapters available:", message);
+          setError(message);
+        }
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        throw fetchError;
       }
     } catch (err) {
       console.error("Failed to load chapters:", err);
@@ -65,8 +122,10 @@ export function BlogLayout() {
       // 提供更详细的错误信息
       let errorMessage = "Failed to load chapters. ";
       
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        errorMessage += "Cannot connect to the backend server at https://jenny-capital-300348180421.us-central1.run.app. Please ensure the server is running on port 8080.";
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        errorMessage += "Request timed out. The server may be starting up (cold start). Please try again in a moment.";
+      } else if (err instanceof TypeError && err.message.includes('fetch')) {
+        errorMessage += "Cannot connect to the backend server. Please check your internet connection.";
       } else if (err instanceof Error) {
         errorMessage += `Error: ${err.message}`;
       } else {
@@ -87,42 +146,55 @@ export function BlogLayout() {
       // 首先检查服务器是否可达
       console.log("Attempting to regenerate chapters...");
       
-      const response = await fetch("https://jenny-capital-300348180421.us-central1.run.app/chapters/regenerate", {
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // 添加超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时，生成需要更长时间
       
-      console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers));
-      
-      if (!response.ok) {
-        // 尝试获取错误响应的详细信息
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const errorData = await response.text();
-          console.error("Error response body:", errorData);
-          errorMessage += errorData ? ` - ${errorData}` : '';
-        } catch (parseErr) {
-          console.error("Could not parse error response:", parseErr);
+      try {
+        const response = await fetch("https://jenny-capital-300348180421.us-central1.run.app/chapters/regenerate", {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        console.log("Response status:", response.status);
+        console.log("Response headers:", Object.fromEntries(response.headers));
+        
+        if (!response.ok) {
+          // 尝试获取错误响应的详细信息
+          let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          try {
+            const errorData = await response.text();
+            console.error("Error response body:", errorData);
+            errorMessage += errorData ? ` - ${errorData}` : '';
+          } catch (parseErr) {
+            console.error("Could not parse error response:", parseErr);
+          }
+          throw new Error(errorMessage);
         }
-        throw new Error(errorMessage);
+        
+        const data = await response.json();
+        console.log("Regeneration result:", data);
+        
+        // Reload chapters after regeneration
+        await loadChapters();
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        throw fetchError;
       }
-      
-      const data = await response.json();
-      console.log("Regeneration result:", data);
-      
-      // Reload chapters after regeneration
-      await loadChapters();
     } catch (err) {
       console.error("Failed to regenerate chapters:", err);
       
       // 提供更详细的错误信息
       let errorMessage = "Failed to regenerate chapters. ";
       
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        errorMessage += "Cannot connect to the backend server at https://jenny-capital-300348180421.us-central1.run.app. Please ensure the server is running.";
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        errorMessage += "Request timed out. Chapter generation takes time. Please try again.";
+      } else if (err instanceof TypeError && err.message.includes('fetch')) {
+        errorMessage += "Cannot connect to the backend server. Please check your internet connection.";
       } else if (err instanceof Error) {
         errorMessage += `Error: ${err.message}`;
       } else {
@@ -136,7 +208,7 @@ export function BlogLayout() {
   };
 
   useEffect(() => {
-    loadChapters();
+    loadChaptersWithRetry();
   }, []);
 
   const nextChapter = () => {
@@ -152,10 +224,22 @@ export function BlogLayout() {
   };
 
   if (loading) {
+    const loadingTime = loadingStartTime ? Math.floor((Date.now() - loadingStartTime) / 1000) : 0;
+    
     return (
       <div className="p-8 text-center">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-        <p>📖 Loading chapters...</p>
+        <p className="mb-2">📖 Loading chapters...</p>
+        {loadingTime > 5 && (
+          <p className="text-sm text-muted-foreground">
+            The server may be starting up (cold start). Please wait... ({loadingTime}s)
+          </p>
+        )}
+        {loadingTime > 15 && (
+          <p className="text-xs text-muted-foreground mt-2">
+            First load may take up to 30 seconds due to server cold start
+          </p>
+        )}
       </div>
     );
   }
