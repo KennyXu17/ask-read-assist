@@ -5,8 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // 👇 部署到 GitHub Pages 时必须指定仓库名
-  base: "/ask-read-assist/",
+  // 👇 使用自定义域名时设置为根路径
+  base: "/",
 
   server: {
     host: "::", // 允许局域网访问
